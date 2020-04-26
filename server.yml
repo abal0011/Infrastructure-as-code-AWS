@@ -1,0 +1,156 @@
+Parameters:
+  EnvironmentName:
+    Description: Environment Name that will be prefixed to resource names
+    Type: String
+
+Resources:
+  LBSecGroup:
+  Type: AWS::EC2::SecurityGroup
+  Properties:
+    GroupDescription: Allow HTTP in Load Balancer
+    VpcId: !Ref VPC
+    SecurityGroupIngress:
+    - IpProtocol: TCP
+      FromPort: 80
+      ToPort: 80
+      CidrIp: 0.0.0.0/0
+    SecurityGroupEgress:
+    - IpProtocol: TCP
+      FromPort: 80
+      ToPort: 80
+      CidrIp: 0.0.0.0/0  
+  WebServerSecurityGroup:
+  Type: AWS::EC2::SecurityGroup
+  Properties: 
+    GroupDescription: EC2 Security Group
+    GroupName: EC2-SecurityGroup
+    VpcId: !Ref VPC
+    # Outbound Rules
+    SecurityGroupEgress: 
+    - IpProtocol: TCP
+      FromPort: 0
+      ToPort: 65535 
+      CidrIp: 0.0.0.0/0
+    # Inbound Rules  
+    SecurityGroupIngress: 
+    - Description: Inbound rule to allow the Load Balancer.
+      IpProtocol: TCP
+      SourceSecurityGroupId: !Ref LBSecGroup
+      FromPort: 80
+      ToPort: 80
+  WebAppS3ReadOnlyEC2:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+      Policies:
+        - PolicyName: S3readOnlyEC2
+          PolicyDocument:
+            Version: 2012-10-2017
+            statement:
+              - Effect: Allow
+                Action:
+                  - s3:Get*
+                  - s3:List*
+                Resource: "*"
+  EC2ReadOnlyS3InstanceProfile: 
+    Type: AWS::IAM::InstanceProfile
+    Properties: 
+      Path: /
+      Roles: 
+        - !Ref WebAppS3ReadOnlyEC2
+
+  WebAppLaunchConfig:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      UserData:
+        Fn::Base64: !Sub |
+            #!/bin/bash
+            apt-get update -y
+            apt-get install unzip awscli -y
+            apt-get install apache2 -y
+            systemctl start apache2.service
+            cd /var/www/html
+            aws s3 cp s3://udacity-demo-1/udacity.zip .
+            unzip -o udacity.zip
+        ImageId: ami-00a54827eb7ffcd3c # Ubuntu Server 18.04 LTS (HVM), SSD Volume Type
+        IamInstanceProfile: !Ref EC2ReadOnlyS3InstanceProfile
+        SecurityGroups: !Ref WebServerSecurityGroup
+        InstanceType: t3.medium
+        BlockDeviceMappings:
+        - DeviceName: "/dev/sdk"
+          Ebs:
+            VolumeSize: '10'
+  WebAppGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier: !ImportValue !Sub ${EnvironmentName}-PRIV-NETS
+      LaunchConfigurationName: !Ref WebAppLaunchConfig
+      Minsize: '2'
+      MaxSize: '6'
+      TargetGroupARNs: 
+      - ref: WebAppTargetGroup
+  WebAppLB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Subnets:
+      - Fn::ImportValue: !Sub "${EnvironmentName}-PUB1-SN"
+      - Fn::ImportValue: !Sub "${EnvironmentName}-PUB2-SN"
+      SecurityGroups:
+      - Ref: LBSecGroup
+  Listener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+      - Type: forward
+        TargetGroupArn:
+          Ref: WebAppTargetGroup
+      LoadBalancerArn:
+        Ref: WebAppLB
+      Port: '80'
+      Protocol: HTTP
+  ALBListenerRule:
+      Type: AWS::ElasticLoadBalancingV2::ListenerRule
+      Properties:
+        Actions:
+        - Type: forward
+          TargetGroupArn: !Ref 'WebAppTargetGroup'
+        Conditions:
+        - Field: path-pattern
+          Values: [/]
+        ListenerArn: !Ref 'Listener'
+        Priority: 1
+  WebAppTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 8
+      HealthyThresholdCount: 2
+      Port: 8080
+      Protocol: HTTP
+      UnhealthyThresholdCount: 5
+      VpcId: 
+        Fn::ImportValue:
+          Fn::Sub: "${EnvironmentName}-VPCID"
+Outputs:
+  LoadBalancerDNS:
+    Description: The URL of the Udagram website
+    Value:
+      !Sub
+        - 'http://${LoadBalancerDNS}'
+        - {LoadBalancerDNS: !GetAtt 'WebAppLB.DNSName'}
+    Export:
+      Name: !Sub "${EnvironmentName}-SiteURL"
+      
+
+
