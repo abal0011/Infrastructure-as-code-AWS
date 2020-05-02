@@ -9,4 +9,6 @@ The project also contains infrastructure diagram using which the infrastructure 
 
 Please find the FinalOutput.jpg in the folder to view the output from Load Balancer 
 
+![screenshot](FinalOutput.jpg)
+
 http://serve-webap-r2bzuqrwk1ww-1612809672.us-west-2.elb.amazonaws.com/
