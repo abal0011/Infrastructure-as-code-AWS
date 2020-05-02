@@ -18,7 +18,7 @@ Parameters:
     Description: Please enter the IP CIDR range for the first private subnet
     Type: String
     Default: 10.0.2.0/24
-  PrivateSubnetCIDR:
+  PrivateSubnet2CIDR:
     Description: Please enter the IP CIDR range for the Second private subnet
     Type: String
     Default: 10.0.3.0/24
@@ -28,7 +28,7 @@ Resources:
     Type: AWS::EC2::VPC
     Properties:
       CidrBlock: !Ref VpcCIDR # Getting the value from network-params.json file
-      EnableDnsHostname: true
+      EnableDnsHostnames: true
       Tags:
         - Key: Name
           Value: !Ref EnvironmentName
@@ -40,7 +40,7 @@ Resources:
         - Key: Name
           Value: !Ref EnvironmentName
   InternetGatewayAttachment:
-    Type: AWS::EC2::VPCGatewatAttachment
+    Type: AWS::EC2::VPCGatewayAttachment
     Properties:
       InternetGatewayId: !Ref InternetGateway
       VpcId: !Ref VPC
