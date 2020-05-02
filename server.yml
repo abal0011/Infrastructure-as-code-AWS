@@ -12,12 +12,12 @@ Resources:
         Fn::ImportValue:
           Fn::Sub: "${EnvironmentName}-VPCID"
       SecurityGroupIngress:
-        - IpProtocol: TCP
+        - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
           CidrIp: 0.0.0.0/0
       SecurityGroupEgress:
-        - IpProtocol: TCP
+        - IpProtocol: tcp
           FromPort: 80
           ToPort: 80
           CidrIp: 0.0.0.0/0
@@ -30,18 +30,20 @@ Resources:
         Fn::ImportValue:
           Fn::Sub: "${EnvironmentName}-VPCID"
       # Outbound Rules
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
       SecurityGroupEgress:
-        - IpProtocol: TCP
+        - IpProtocol: tcp
           FromPort: 0
           ToPort: 65535
           CidrIp: 0.0.0.0/0
-      # Inbound Rules
-      SecurityGroupIngress:
-        - Description: Inbound rule to allow the Load Balancer.
-          IpProtocol: TCP
-          SourceSecurityGroupId: !Ref LBSecGroup
-          FromPort: 80
-          ToPort: 80
   IamRole:
     Type: AWS::IAM::Role
     Properties:
@@ -87,11 +89,11 @@ Resources:
           cd /var/www/html
           aws s3 cp s3://udacity-demo-1/udacity.zip .
           unzip -o udacity.zip
-      ImageId: ami-005bdb005fb00e791 # Ubuntu Server 18.04 LTS (HVM), SSD Volume Type
+      ImageId: ami-0d1cd67c26f5fca19 # Ubuntu Server 18.04 LTS (HVM), SSD Volume Type
       IamInstanceProfile: !Ref IamInstanceProfile
       SecurityGroups:
         - Ref: WebServerSecurityGroup
-      InstanceType: t3.medium
+      InstanceType: t3.small
       BlockDeviceMappings:
         - DeviceName: "/dev/sdk"
           Ebs:
@@ -102,10 +104,10 @@ Resources:
       VPCZoneIdentifier:
         - Fn::ImportValue: !Sub "${EnvironmentName}-PRIV-NETS"
       LaunchConfigurationName: !Ref WebAppLaunchConfig
-      Minsize: "2"
+      MinSize: "2"
       MaxSize: "6"
       TargetGroupARNs:
-        - ref: WebAppTargetGroup
+        - Ref: WebAppTargetGroup
   WebAppLB:
     Type: AWS::ElasticLoadBalancingV2::LoadBalancer
     Properties:
@@ -144,7 +146,7 @@ Resources:
       HealthCheckProtocol: HTTP
       HealthCheckTimeoutSeconds: 8
       HealthyThresholdCount: 2
-      Port: 8080
+      Port: 80
       Protocol: HTTP
       UnhealthyThresholdCount: 5
       VpcId:
